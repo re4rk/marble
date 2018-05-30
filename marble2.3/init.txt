@@ -1,0 +1,3 @@
+map = ./images/maps/test3.png
+user = aaa, bbb, ccc, ddd
+button = button_before, button_after

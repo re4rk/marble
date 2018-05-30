@@ -3,24 +3,65 @@ from random import *
 
 pygame.init()
 
+
 class Dice():
     w,h = (0,0)
+    check = False
+    gaugeNum = 0
+    downup = False
     def down(world,pos):
         (Dice.w,Dice.h) = pos
         button = world.obj()
         if button[2].w <= Dice.w<=button[2].w +100:
             if button[2].h<Dice.h<=button[2].h+100:
                 button[2] = button[1]
+                Dice.downup = True
+                Dice.gauge()
+    def gauge():
+        i = 2
+        j = True
+        while len(world.gauge()):
+            world.gauge().pop()
+        world.gauge().append(Object("./images/gauge/gauge"+'2'+".png",480,400))
+        world.gauge().append(Object("./images/gauge/gauge"+'3'+".png",480,400))
+        while True:
+            for event in pygame.event.get():
+                if event.type == pygame.MOUSEBUTTONUP:
+                    Dice.up(world,event.pos)
+                    t = threading.Thread(target=Dice.delay, args=())
+                    t.daemon = True
+                    t.start()
+                    return 0
+            Dice.gaugeNum = i
+            world.gauge().append(Object("./images/gauge/gauge"+str(i)+".png",480,400))
+            time.sleep(0.03)
+            world.gauge().pop(0)
+
+            if j ==True : i += 1
+            elif j == False : i -= 1
+
+            if i == 2 : j = True
+            elif i == 12 : j = False 
+
+    def delay():
+        time.sleep(4)
+        world.gauge().pop(0)
+
     def up(world,pos):
         button = world.obj()
         if button[2].w <= Dice.w<=button[2].w +100:
             if button[2].h<Dice.h<=button[2].h+100:
                 button[2] = button[0]
-                if Dice.move(Dice.random(2,1),world.user()[User.Table]):
-                    world.user()[User.Table].addMoney(150000)
-                Event_Arr(world, pos)            
+                print(Dice.gaugeNum)
+                Dice.downup = False
+                if Dice.move(Dice.random(Dice.gaugeNum,10),world.user()[User.Table]):
+                    world.user()[User.Table].addMoney(150000)    
+                displayPriceList(world)
+                passGround(world)     
                 User.Table +=1
                 User.Table %= User.population
+                Dice.check = True
+
     def random(num, a = 1):
         i = randint(1,360)
         if     0         < i <= 10 - a* 1 : return 2
@@ -35,6 +76,7 @@ class Dice():
         elif 330 - a * 33< i <=350 - a*35 : return 11
         elif 350 - a * 35< i <=360 - a*36 : return 12
         elif 360 - a * 36< i <=360        : return num
+
     def move(num,user):
         while num != 0:
             num-=1  
@@ -60,7 +102,7 @@ class Dice():
                     user.h-=1
                     user.Rect.move_ip(0,-80)
             user.index+=1
-            time.sleep(0.15)
+            time.sleep(0.10)
         index= user.index//32
         user.index%=32
         return index    
@@ -68,7 +110,7 @@ class Dice():
 class World():
     def __init__(self,mapName, userName,objectName,landName):
         self.map = pygame.image.load(mapName[0])
-        self.screen = pygame.display.set_mode((1280,720))
+        self.screen = pygame.display.set_mode((1278,720))
         land = setLands(landName)
         user = []
         for name in userName:
@@ -78,16 +120,16 @@ class World():
             obj.append(Object("./images/button/"+name+".png",600,467))
         obj.append(Object("./images/button/"+objectName[0]+".png",600,467))
         window = []
-        self.objects=[land, obj, [], user, window, []]
+        self.objects=[land, obj, [], user, window, [],[]]
     def blit(self,a,b):
         self.screen.blit(a,b)
-
     def land(self):return self.objects[0]
     def obj(self):return self.objects[1]
     def building(self):return self.objects[2]
     def user(self):return self.objects[3]
     def window(self):return self.objects[4]
     def text(self):return self.objects[5]
+    def gauge(self):return self.objects[6]
     def display(self):
         while True:
             self.blit(self.map, (0,0))
@@ -99,7 +141,7 @@ class World():
                 self.user()[i].profileInfo(180,100+110*i)
 
             pygame.display.update()
-            time.sleep(0.05)
+            time.sleep(0.02)
 
 def setLands(fileName):
     landList = []
@@ -111,7 +153,6 @@ def setLands(fileName):
         line = line.replace('\n','').split('\t')
         print(line)
         landList.append(Land(line))
-
     return landList
 
 
@@ -123,8 +164,8 @@ class Land():
         self.h = int(information[2])
         self.ground = False
         self.groundPrice = information[3]
-        self.house = False
-        self.housePrice = information[4]
+        self.village = False
+        self.villagePrice = information[4]
         self.building = False
         self.buildingPrice = information[5]
         self.hotel = False
@@ -144,11 +185,14 @@ class Land():
 
     def getProfile(self):
         a = Object("./images/temp.png",500,300)
-        ab = self.landName +" land's owner is "+ self.landhost
+        ab = self.landName +" land's owner is "+ self.landhost +self.groundPrice+","+ self.villagePrice + ","+self.buildingPrice + ","+self.hotelPrice
+        abc = self.landhost +self.groundPrice+","+ self.villagePrice + ","+self.buildingPrice + ","+self.hotelPrice
         a.Surf = self.font.render(ab,True,(0,0,0))
+        a.Surf = self.font.render(abc,True,(0,0,0))
         a.Rect = self.Surf.get_rect()
         a.Rect.move_ip(500,300)
         return a
+
     def mouseClick(world,pos):
         (w,h) = pos
         if len(world.window()):
@@ -233,15 +277,13 @@ def handle(world):
         for event in pygame.event.get():
             if event.type == pygame.MOUSEBUTTONDOWN:
                 (w, h) = event.pos
-                if(650 <= w <=1120 and 190 <= h <= 260):
-                    buttonRange(event.pos, world)                    
+                if Dice.check == True:
+                    buttonRange(event, world)   
                 Land.mouseCheck(world,event.pos)
                 Dice.down(world,event.pos)                
                 Land.mouseClick(world,event.pos)
-
             if event.type == pygame.MOUSEBUTTONUP:
-                Dice.up(world,event.pos)
-                
+                pass
             if event.type == pygame.MOUSEMOTION:
                 #Land.landCheck(world,event.pos)
                 #print('mouse move (%d,%d)'%event.pos)
@@ -255,108 +297,122 @@ def handle(world):
                 pygame.quit()
                 sys.exit()
 #########################################
-def buttonRange(pos, world):
-    (w, h) = pos
-    player = world.user()[(User.Table+3)%4]
+
+def passGround(world):
+    player = world.user()[User.Table]
     lander = world.land()[player.index]
 
-    if (650 <= w <=744 and 190 <= h <= 260 and lander.ground == False):
-        lander.ground = True
-        landRange(player.w, player.h, "Ground.png")
-        player.subMoney( lander.groundPrice)       
-    elif (744 <= w <=838 and 190 <= h <= 260 and lander.house == False):
-        lander.house = True
-        landRange(player.w, player.h, "Village.bmp")
-        player.subMoney( lander.housePrice)
-    elif (838 <= w <=932 and 190 <= h <= 260 and lander.building == False):
-        lander.building = True
-        landRange(player.w, player.h, "Building.bmp")
-        player.subMoney( lander.buildingPrice)
-    elif (932 <= w <=1026 and 190 <= h <= 260 and lander.hotel == False):
-        lander.hotel = True
-        landRange(player.w, player.h, "Hotel.bmp")
-        player.subMoney( lander.hotelPrice)
-    elif (1026 <= w <=1120 and 190 <= h <= 260 and lander.landmark == False):
-        lander.landmark = True
-        landRange(player.w, player.h, "Landmark.bmp")
-        player.subMoney( lander.landmarkPrice)
-    else:
+    if(lander.landhost != str(User.Table)):
+        if lander.landhost != "":
+            host = world.user()[int(lander.landhost)]
+        if(str(User.Table) != lander.landhost):
+            if(lander.ground == True):
+                player.subMoney(float(lander.groundPrice)*1.5)
+                host.addMoney(float(lander.groundPrice)*1.5)
+            if(lander.village == True):
+                player.subMoney(float(lander.villagePrice)*1.5)
+                host.addMoney(float(lander.villagePrice)*1.5)
+            if(lander.building == True ):
+                player.subMoney(float(lander.buildingPrice)*1.5)
+                host.addMoney(float(lander.buildingPrice)*1.5)
+            if(lander.hotel == True ):
+                player.subMoney(float(lander.hotelPrice)*1.5)
+                host.addMoney(float(lander.hotelPrice)*1.5)
+            if(lander.landmark == True):
+                player.subMoney(float(lander.landmarkPrice)*1.5)
+                host.addMoney(float(lander.landmarkPrice)*1.5)
+
+
+
+def buttonRange(event, world):
+    player = world.user()[(User.Table+3)%4]
+    lander = world.land()[player.index]
+    if player.index%8 == 0:
+        return 0
+    if str((User.Table+3)%4) == lander.landhost or lander.landhost == "":
+        ground = village = building = hotel = False
+
+        while Dice.check:
+            for event in pygame.event.get():
+                if event.type == pygame.MOUSEBUTTONUP:
+                    (w, h) = event.pos
+                    if 190 <= h <= 260:
+                        if 650 <= w <=744 :
+                            world.window().append(Object("./images/button/dbuy.png", 650, 190))
+                            ground = True
+                            break
+                        elif 744 <= w <=838 :
+                            world.window().append(Object("./images/button/dvillage.png", 744, 190))
+                            village = True
+                        elif 838 <= w <=932 :
+                            world.window().append(Object("./images/button/dbuilding.png", 838, 190))
+                            building = True
+                        elif 932 <= w <=1026 :
+                            world.window().append(Object("./images/button/dhotel.png", 932, 190))
+                            hotel = True
+                        elif 1026 <= w <=1120 :
+                            Dice.check = False
+                            return 0
+                    #elif 600<= w <= 700 and 467<= h <=567:
+                    #    Dice.check = False
+                    #    return 0
+            if ground == True:
+                break
+        Dice.check = False
+        if (ground == True and lander.ground == False):
+            lander.ground = True
+            makeBuilding( "Ground.png",player.w, player.h)
+            player.subMoney( lander.groundPrice)       
+        if (village == True and lander.village == False):
+            lander.village = True
+            makeBuilding( "Village.bmp",player.w, player.h)
+            player.subMoney( lander.villagePrice)
+        if (building == True and lander.building == False):
+            lander.building = True
+            makeBuilding( "Building.bmp",player.w, player.h)
+            player.subMoney( lander.buildingPrice)
+        if (hotel == True and lander.hotel == False):
+            lander.hotel = True
+            makeBuilding( "Hotel.bmp",player.w, player.h)
+            player.subMoney( lander.hotelPrice)
+        lander.landhost = str((User.Table+3)%4)
         return 0
 
-    lander.landhost = str((User.Table+3)%4)
+numtocolor = ["red","blue","green","yellow"]
+def makeBuilding(name,w, h):
+    w *= 142 ; h *= 80
 
-def landRange(w, h, name):        
-    if(1 <= w <= 7 and  0 == h):
-        for i in range(1, 7):
-            if(w == i):
-                checkBuilding(name, i*142, 0)
-                print(name)        
-    elif( 8 == w and 1 <= h <= 7):
-        for i in range(1, 8):
-            if(h == i):
-                print("I : %d", i)
-                checkBuilding(name, 1282-144, i*80)      
-    elif(1 <= w <= 7 and h == 8):
-        for i in range(1, 7):
-            if(w == i):
-                checkBuilding(name, i*142, 642)
-    elif( 0 == w and 1 <= h <= 7):
-        for i in range(1, 8):
-            if(h == i):
-                checkBuilding(name, 0, i*80)
+    color = numtocolor[(User.Table+3)%4]
 
-def checkBuilding(name, w, h):
-    table = (User.Table+3)%4
-    if table == 0:
-        color = "blue"
-    elif table == 1:
-        color = "red"
-    elif table == 2:
-        color = "green"
-    elif table == 3:
-        color = "yellow"
+    if (name=="Village.bmp"): w += 65+48; h += 49
+    elif(name=="Building.bmp"): w += 65+24; h += 19
+    elif(name=="Hotel.bmp"): h +=5; w += 65
+    elif(name=="Ground.png"): pass
 
-    if(name=="Village.bmp"):
-        world.building().append(Object("./images/building/"+color+name, w+48, h+80-31))
-        print("USER: %d %d", w, h)
-    elif(name=="Building.bmp"):
-        world.building().append(Object("./images/building/"+color+name, w+24, h+20))
-    elif(name=="Hotel.bmp"):
-        world.building().append(Object("./images/building/"+color+name, w, h+5))
-    elif(name=="Landmark.bmp"):
-        print("Landmark")
-    elif(name=="Ground.png"):
-        world.building().append(Object("./images/building/"+color+name, w-2, h))
+    world.building().append(Object("./images/building/"+color+name, w, h))
 
-def Event_Arr(world, pos):
-    #if True:
-    (w, h) = pos
-    visitor = world.user()[User.Table]
-    visitorLocation = visitor.index
-    host = world.land()[visitorLocation].landhost
-    
-    print(visitorLocation)
-    i=0
-    if(visitorLocation != 8 and visitorLocation != 16 and visitorLocation != 24 and visitorLocation != 0):
-        if host=="":
-            world.window().append(Object("./images/button/buy.png", 650, 190))
-            world.window().append(Object("./images/button/village.png", 744, 190))
-            world.window().append(Object("./images/button/building.png", 838, 190))
-            world.window().append(Object("./images/button/hotel.png", 932, 190))
-            world.window().append(Object("./images/button/landmark.png", 1026, 190))    
-        else:
-            if str(User.Table) == host:        
-                if visitorLocation.village and visitorLocation.building and visitorLocation.hotel:
-                    objects.window().append(Object("./images/text/landmark.png", 744, 190))
-                else:
-                    if(visitorLocation.village == 0):                        
-                        objects.window().append(Object("./images/text/village.png", 838, 190))
-                    elif(visitorLocation.building == 0):
-                        objects.window().append(Object("./images/text/building.png", 932, 190))
-                    elif(visitorLocation.hotel == 0):
-                        objects.window().append(Object("./images/text/hotel.png", 1026, 190))
+def displayPriceList(world):
+    visitorIndex = world.user()[User.Table].index
+    land = world.land()[visitorIndex]
 
-
+    if str(User.Table) == land.landhost or land.landhost == "":
+        if(visitorIndex%8 != 0):
+            if land.ground == False:
+                world.window().append(Object("./images/button/buy.png", 650, 190))
+            else :
+                world.window().append(Object("./images/button/dbuy.png", 650, 190))
+            if land.village == False:    
+                world.window().append(Object("./images/button/village.png", 744, 190))
+            else :
+                world.window().append(Object("./images/button/dvillage.png", 744, 190))
+            if land.building == False: 
+                world.window().append(Object("./images/button/building.png", 838, 190))
+            else :
+                world.window().append(Object("./images/button/dbuilding.png", 838, 190))
+            if land.hotel == False: 
+                world.window().append(Object("./images/button/hotel.png", 932, 190))
+            else :
+                world.window().append(Object("./images/button/dhotel.png", 932, 190))
 
 #########################################
 
